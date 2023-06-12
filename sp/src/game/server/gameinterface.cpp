@@ -89,6 +89,12 @@
 #include "tier3/tier3.h"
 #include "serverbenchmark_base.h"
 #include "querycache.h"
+#ifdef MAPBASE
+#include "world.h"
+#endif
+
+#include "vscript/ivscript.h"
+#include "vscript_server.h"
 
 
 #ifdef TF_DLL
@@ -182,6 +188,7 @@ IServerEngineTools *serverenginetools = NULL;
 ISceneFileCache *scenefilecache = NULL;
 IXboxSystem *xboxsystem = NULL;	// Xbox 360 only
 IMatchmaking *matchmaking = NULL;	// Xbox 360 only
+IScriptManager *scriptmanager = NULL;
 #if defined( REPLAY_ENABLED )
 IReplaySystem *g_pReplay = NULL;
 IServerReplayContext *g_pReplayServerContext = NULL;
@@ -624,6 +631,16 @@ bool CServerGameDLL::DLLInit( CreateInterfaceFn appSystemFactory,
 	if ( IsX360() && (matchmaking = (IMatchmaking *)appSystemFactory( VENGINE_MATCHMAKING_VERSION, NULL )) == NULL )
 		return false;
 
+	if (!CommandLine()->CheckParm("-noscripting"))
+	{
+		scriptmanager = (IScriptManager*)appSystemFactory(VSCRIPT_INTERFACE_VERSION, NULL);
+
+		if (scriptmanager == nullptr)
+		{
+			scriptmanager = (IScriptManager*)Sys_GetFactoryThis()(VSCRIPT_INTERFACE_VERSION, NULL);
+		}
+	}
+
 	// If not running dedicated, grab the engine vgui interface
 	if ( !engine->IsDedicatedServer() )
 	{
@@ -681,6 +698,7 @@ bool CServerGameDLL::DLLInit( CreateInterfaceFn appSystemFactory,
 	g_pGameSaveRestoreBlockSet->AddBlockHandler( GetCommentarySaveRestoreBlockHandler() );
 	g_pGameSaveRestoreBlockSet->AddBlockHandler( GetEventQueueSaveRestoreBlockHandler() );
 	g_pGameSaveRestoreBlockSet->AddBlockHandler( GetAchievementSaveRestoreBlockHandler() );
+	g_pGameSaveRestoreBlockSet->AddBlockHandler( GetVScriptSaveRestoreBlockHandler() );
 
 	// The string system must init first + shutdown last
 	IGameSystem::Add( GameStringSystem() );
@@ -701,6 +719,9 @@ bool CServerGameDLL::DLLInit( CreateInterfaceFn appSystemFactory,
 	IGameSystem::Add( SoundEmitterSystem() );
 
 	// load Mod specific game events ( MUST be before InitAllSystems() so it can pickup the mod specific events)
+#ifdef MAPBASE
+	gameeventmanager->LoadEventsFromFile("resource/MapbaseEvents.res");
+#endif
 	gameeventmanager->LoadEventsFromFile("resource/ModEvents.res");
 
 #ifdef CSTRIKE_DLL // BOTPORT: TODO: move these ifdefs out
@@ -756,6 +777,7 @@ void CServerGameDLL::DLLShutdown( void )
 	// Due to dependencies, these are not autogamesystems
 	ModelSoundsCacheShutdown();
 
+	g_pGameSaveRestoreBlockSet->RemoveBlockHandler( GetVScriptSaveRestoreBlockHandler() );
 	g_pGameSaveRestoreBlockSet->RemoveBlockHandler( GetAchievementSaveRestoreBlockHandler() );
 	g_pGameSaveRestoreBlockSet->RemoveBlockHandler( GetCommentarySaveRestoreBlockHandler() );
 	g_pGameSaveRestoreBlockSet->RemoveBlockHandler( GetEventQueueSaveRestoreBlockHandler() );
@@ -1081,9 +1103,7 @@ bool g_bCheckForChainedActivate;
 	{ \
 		if ( bCheck ) \
 		{ \
-			char msg[ 1024 ];	\
-			Q_snprintf( msg, sizeof( msg ),  "Entity (%i/%s/%s) failed to call base class Activate()\n", pClass->entindex(), pClass->GetClassname(), STRING( pClass->GetEntityName() ) );	\
-			AssertMsg( g_bReceivedChainedActivate == true, msg ); \
+			AssertMsg( g_bReceivedChainedActivate == true, "Entity (%i/%s/%s) failed to call base class Activate()\n", pClass->entindex(), pClass->GetClassname(), STRING( pClass->GetEntityName() ) ); \
 		} \
 		g_bCheckForChainedActivate = false; \
 	}
@@ -1615,7 +1635,7 @@ static TITLECOMMENT gTitleComments[] =
 	{ "c4a2", "#HL1_Chapter16_Title"  },
 	{ "c4a3", "#HL1_Chapter18_Title"  },
 	{ "c5a1", "#HL1_Chapter19_Title"  },
-#elif !(defined PORTAL)
+#elif defined PORTAL
 	{ "testchmb_a_00",			"#Portal_Chapter1_Title"  },
 	{ "testchmb_a_01",			"#Portal_Chapter1_Title"  },
 	{ "testchmb_a_02",			"#Portal_Chapter2_Title"  },
@@ -1640,90 +1660,122 @@ static TITLECOMMENT gTitleComments[] =
 	{ "escape_",				"#Portal_Chapter11_Title"  },
 	{ "background2",			"#Portal_Chapter12_Title"  },
 #else
-	{ "intro", "#hl2_with_ashpd_Chapter1_Title" },
+	{ "intro", "#HL2_Chapter1_Title" },
 
-	{ "d1_trainstation_05", "#hl2_with_ashpd_Chapter2_Title" },
-	{ "d1_trainstation_06", "#hl2_with_ashpd_Chapter2_Title" },
+	{ "d1_trainstation_05", "#HL2_Chapter2_Title" },
+	{ "d1_trainstation_06", "#HL2_Chapter2_Title" },
 	
-	{ "d1_trainstation_", "#hl2_with_ashpd_Chapter1_Title" },
+	{ "d1_trainstation_", "#HL2_Chapter1_Title" },
 
-	{ "d1_canals_06", "#hl2_with_ashpd_Chapter4_Title" },
-	{ "d1_canals_07", "#hl2_with_ashpd_Chapter4_Title" },
-	{ "d1_canals_08", "#hl2_with_ashpd_Chapter4_Title" },
-	{ "d1_canals_09", "#hl2_with_ashpd_Chapter4_Title" },
-	{ "d1_canals_1", "#hl2_with_ashpd_Chapter4_Title" },
+	{ "d1_canals_06", "#HL2_Chapter4_Title" },
+	{ "d1_canals_07", "#HL2_Chapter4_Title" },
+	{ "d1_canals_08", "#HL2_Chapter4_Title" },
+	{ "d1_canals_09", "#HL2_Chapter4_Title" },
+	{ "d1_canals_1", "#HL2_Chapter4_Title" },
 	
-	{ "d1_canals_0", "#hl2_with_ashpd_Chapter3_Title" },
+	{ "d1_canals_0", "#HL2_Chapter3_Title" },
 
-	{ "d1_eli_", "#hl2_with_ashpd_Chapter5_Title" },
+	{ "d1_eli_", "#HL2_Chapter5_Title" },
 
-	{ "d1_town_", "#hl2_with_ashpd_Chapter6_Title" },
+	{ "d1_town_", "#HL2_Chapter6_Title" },
 
-	{ "d2_coast_09", "#hl2_with_ashpd_Chapter8_Title" },
-	{ "d2_coast_1", "#hl2_with_ashpd_Chapter8_Title" },
-	{ "d2_prison_01", "#hl2_with_ashpd_Chapter8_Title" },
+	{ "d2_coast_09", "#HL2_Chapter8_Title" },
+	{ "d2_coast_1", "#HL2_Chapter8_Title" },
+	{ "d2_prison_01", "#HL2_Chapter8_Title" },
 
-	{ "d2_coast_", "#hl2_with_ashpd_Chapter7_Title" },
+	{ "d2_coast_", "#HL2_Chapter7_Title" },
 
-	{ "d2_prison_06", "#hl2_with_ashpd_Chapter9a_Title" },
-	{ "d2_prison_07", "#hl2_with_ashpd_Chapter9a_Title" },
-	{ "d2_prison_08", "#hl2_with_ashpd_Chapter9a_Title" },
+	{ "d2_prison_06", "#HL2_Chapter9a_Title" },
+	{ "d2_prison_07", "#HL2_Chapter9a_Title" },
+	{ "d2_prison_08", "#HL2_Chapter9a_Title" },
 
-	{ "d2_prison_", "#hl2_with_ashpd_Chapter9_Title" },
+	{ "d2_prison_", "#HL2_Chapter9_Title" },
 
-	{ "d3_c17_01", "#hl2_with_ashpd_Chapter9a_Title" },
-	{ "d3_c17_09", "#hl2_with_ashpd_Chapter11_Title" },
-	{ "d3_c17_1", "#hl2_with_ashpd_Chapter11_Title" },
+	{ "d3_c17_01", "#HL2_Chapter9a_Title" },
+	{ "d3_c17_09", "#HL2_Chapter11_Title" },
+	{ "d3_c17_1", "#HL2_Chapter11_Title" },
 
-	{ "d3_c17_", "#hl2_with_ashpd_Chapter10_Title" },
+	{ "d3_c17_", "#HL2_Chapter10_Title" },
 
-	{ "d3_citadel_", "#hl2_with_ashpd_Chapter12_Title" },
+	{ "d3_citadel_", "#HL2_Chapter12_Title" },
 
-	{ "d3_breen_", "#hl2_with_ashpd_Chapter13_Title" },
-	{ "credits", "#hl2_with_ashpd_Chapter14_Title" },
+	{ "d3_breen_", "#HL2_Chapter13_Title" },
+	{ "credits", "#HL2_Chapter14_Title" },
 
-	{ "ep1_citadel_00", "#hl2ep1_with_ashpd_Chapter1_Title" },
-	{ "ep1_citadel_01", "#hl2ep1_with_ashpd_Chapter1_Title" },
-	{ "ep1_citadel_02b", "#hl2ep1_with_ashpd_Chapter1_Title" },
-	{ "ep1_citadel_02", "#hl2ep1_with_ashpd_Chapter1_Title" },
-	{ "ep1_citadel_03", "#hl2ep1_with_ashpd_Chapter2_Title" },
-	{ "ep1_citadel_04", "#hl2ep1_with_ashpd_Chapter2_Title" },
-	{ "ep1_c17_00a", "#hl2ep1_with_ashpd_Chapter3_Title" },
-	{ "ep1_c17_00", "#hl2ep1_with_ashpd_Chapter3_Title" },
-	{ "ep1_c17_01", "#hl2ep1_with_ashpd_Chapter4_Title" },
-	{ "ep1_c17_02b", "#hl2ep1_with_ashpd_Chapter4_Title" },
-	{ "ep1_c17_02", "#hl2ep1_with_ashpd_Chapter4_Title" },
-	{ "ep1_c17_05", "#hl2ep1_with_ashpd_Chapter5_Title" },
-	{ "ep1_c17_06", "#hl2ep1_with_ashpd_Chapter5_Title" },
+	{ "ep1_citadel_00", "#episodic_Chapter1_Title" },
+	{ "ep1_citadel_01", "#episodic_Chapter1_Title" },
+	{ "ep1_citadel_02b", "#episodic_Chapter1_Title" },
+	{ "ep1_citadel_02", "#episodic_Chapter1_Title" },
+	{ "ep1_citadel_03", "#episodic_Chapter2_Title" },
+	{ "ep1_citadel_04", "#episodic_Chapter2_Title" },
+	{ "ep1_c17_00a", "#episodic_Chapter3_Title" },
+	{ "ep1_c17_00", "#episodic_Chapter3_Title" },
+	{ "ep1_c17_01", "#episodic_Chapter4_Title" },
+	{ "ep1_c17_02b", "#episodic_Chapter4_Title" },
+	{ "ep1_c17_02", "#episodic_Chapter4_Title" },
+	{ "ep1_c17_05", "#episodic_Chapter5_Title" },
+	{ "ep1_c17_06", "#episodic_Chapter5_Title" },
 
-	{ "ep2_outland_01a", "#hl2ep2_with_ashpd_Chapter1_Title" },
-	{ "ep2_outland_01", "#hl2ep2_with_ashpd_Chapter1_Title" },
-	{ "ep2_outland_02", "#hl2ep2_with_ashpd_Chapter2_Title" },
-	{ "ep2_outland_03", "#hl2ep2_with_ashpd_Chapter2_Title" },
-	{ "ep2_outland_04", "#hl2ep2_with_ashpd_Chapter2_Title" },
-	{ "ep2_outland_05", "#hl2ep2_with_ashpd_Chapter3_Title" },
+	{ "ep2_outland_01a", "#ep2_Chapter1_Title" },
+	{ "ep2_outland_01", "#ep2_Chapter1_Title" },
+	{ "ep2_outland_02", "#ep2_Chapter2_Title" },
+	{ "ep2_outland_03", "#ep2_Chapter2_Title" },
+	{ "ep2_outland_04", "#ep2_Chapter2_Title" },
+	{ "ep2_outland_05", "#ep2_Chapter3_Title" },
 	
-	{ "ep2_outland_06a", "#hl2ep2_with_ashpd_Chapter4_Title" },
-	{ "ep2_outland_06", "#hl2ep2_with_ashpd_Chapter3_Title" },
+	{ "ep2_outland_06a", "#ep2_Chapter4_Title" },
+	{ "ep2_outland_06", "#ep2_Chapter3_Title" },
 
-	{ "ep2_outland_07", "#hl2ep2_with_ashpd_Chapter4_Title" },
-	{ "ep2_outland_08", "#hl2ep2_with_ashpd_Chapter4_Title" },
-	{ "ep2_outland_09", "#hl2ep2_with_ashpd_Chapter5_Title" },
+	{ "ep2_outland_07", "#ep2_Chapter4_Title" },
+	{ "ep2_outland_08", "#ep2_Chapter4_Title" },
+	{ "ep2_outland_09", "#ep2_Chapter5_Title" },
 	
-	{ "ep2_outland_10a", "#hl2ep2_with_ashpd_Chapter5_Title" },
-	{ "ep2_outland_10", "#hl2ep2_with_ashpd_Chapter5_Title" },
+	{ "ep2_outland_10a", "#ep2_Chapter5_Title" },
+	{ "ep2_outland_10", "#ep2_Chapter5_Title" },
 
-	{ "ep2_outland_11a", "#hl2ep2_with_ashpd_Chapter6_Title" },
-	{ "ep2_outland_11", "#hl2ep2_with_ashpd_Chapter6_Title" },
+	{ "ep2_outland_11a", "#ep2_Chapter6_Title" },
+	{ "ep2_outland_11", "#ep2_Chapter6_Title" },
 	
-	{ "ep2_outland_12a", "#hl2ep2_with_ashpd_Chapter7_Title" },
-	{ "ep2_outland_12", "#hl2ep2_with_ashpd_Chapter6_Title" },
+	{ "ep2_outland_12a", "#ep2_Chapter7_Title" },
+	{ "ep2_outland_12", "#ep2_Chapter6_Title" },
 #endif
 };
+
+#ifdef MAPBASE
+extern CUtlVector<MODTITLECOMMENT> *Mapbase_GetChapterMaps();
+extern CUtlVector<MODCHAPTER> *Mapbase_GetChapterList();
+#endif
 
 #ifdef _XBOX
 void CServerGameDLL::GetTitleName( const char *pMapName, char* pTitleBuff, int titleBuffSize )
 {
+#ifdef MAPBASE
+	// Check the world entity for a chapter title
+	if ( CWorld *pWorld = GetWorldEntity() )
+	{
+		const char *pWorldChapter = pWorld->GetChapterTitle();
+		if ( pWorldChapter && pWorldChapter[0] != '\0' )
+		{
+			Q_strncpy( chapterTitle, pWorldChapter, sizeof( chapterTitle ) );
+			return;
+		}
+	}
+
+	// Look in the mod's chapter list
+	CUtlVector<MODTITLECOMMENT> *ModChapterComments = Mapbase_GetChapterMaps();
+	if (ModChapterComments->Count() > 0)
+	{
+		for ( int i = 0; i < ModChapterComments->Count(); i++ )
+		{
+			if ( !Q_strnicmp( mapname, ModChapterComments->Element(i).pBSPName, strlen(ModChapterComments->Element(i).pBSPName) ) )
+			{
+				Q_strncpy( pTitleBuff, ModChapterComments->Element(i).pTitleName, titleBuffSize );
+				return;
+			}
+		}
+	}
+#endif
+
 	// Try to find a matching title comment for this mapname
 	for ( int i = 0; i < ARRAYSIZE(gTitleComments); i++ )
 	{
@@ -1733,6 +1785,7 @@ void CServerGameDLL::GetTitleName( const char *pMapName, char* pTitleBuff, int t
 			return;
 		}
 	}
+
 	Q_strncpy( pTitleBuff, pMapName, titleBuffSize );
 }
 #endif
@@ -1770,6 +1823,44 @@ void CServerGameDLL::GetSaveComment( char *text, int maxlength, float flMinutes,
 			break;
 		}
 	}
+
+#ifdef MAPBASE
+	// Look in the mod's chapter list
+	CUtlVector<MODTITLECOMMENT> *ModChapterComments = Mapbase_GetChapterMaps();
+	if (ModChapterComments->Count() > 0)
+	{
+		for ( int i = 0; i < ModChapterComments->Count(); i++ )
+		{
+			if ( !Q_strnicmp( mapname, ModChapterComments->Element(i).pBSPName, strlen(ModChapterComments->Element(i).pBSPName) ) )
+			{
+				// found one
+				int j;
+
+				// Got a message, post-process it to be save name friendly
+				Q_strncpy( comment, ModChapterComments->Element(i).pTitleName, sizeof( comment ) );
+				pName = comment;
+				j = 0;
+				// Strip out CRs
+				while ( j < 64 && comment[j] )
+				{
+					if ( comment[j] == '\n' || comment[j] == '\r' )
+						comment[j] = 0;
+					else
+						j++;
+				}
+				break;
+			}
+		}
+	}
+
+	// Check the world entity for a chapter title
+	if ( CWorld *pWorld = GetWorldEntity() )
+	{
+		const char *pWorldChapter = pWorld->GetChapterTitle();
+		if ( pWorldChapter && pWorldChapter[0] != '\0' )
+			pName = pWorldChapter;
+	}
+#endif
 	
 	// If we didn't get one, use the designer's map name, or the BSP name itself
 	if ( !pName )
@@ -2064,6 +2155,68 @@ void UpdateChapterRestrictions( const char *mapname )
 			break;
 		}
 	}
+
+#ifdef MAPBASE
+	// Look in the mod's chapter list
+	CUtlVector<MODTITLECOMMENT> *ModChapterComments = Mapbase_GetChapterMaps();
+	if (ModChapterComments->Count() > 0)
+	{
+		for ( int i = 0; i < ModChapterComments->Count(); i++ )
+		{
+			if ( !Q_strnicmp( mapname, ModChapterComments->Element(i).pBSPName, strlen(ModChapterComments->Element(i).pBSPName) ) )
+			{
+				// found
+				Q_strncpy( chapterTitle, ModChapterComments->Element(i).pTitleName, sizeof( chapterTitle ) );
+				int j = 0;
+				while ( j < 64 && chapterTitle[j] )
+				{
+					if ( chapterTitle[j] == '\n' || chapterTitle[j] == '\r' )
+						chapterTitle[j] = 0;
+					else
+						j++;
+				}
+
+				// Mods can order their own custom chapter names,
+				// allowing for more flexible string name usage, multiple names in one chapter, etc.
+				CUtlVector<MODCHAPTER> *ModChapterList = Mapbase_GetChapterList();
+				for ( int i = 0; i < ModChapterList->Count(); i++ )
+				{
+					if ( !Q_strnicmp( chapterTitle, ModChapterList->Element(i).pChapterName, strlen(chapterTitle) ) )
+					{
+						// ok we have the string, see if it's newer
+						int nNewChapter = ModChapterList->Element(i).iChapter;
+						int nUnlockedChapter = sv_unlockedchapters.GetInt();
+
+						if ( nUnlockedChapter < nNewChapter )
+						{
+							// ok we're at a higher chapter, unlock
+							sv_unlockedchapters.SetValue( nNewChapter );
+
+							// HACK: Call up through a better function than this? 7/23/07 - jdw
+							if ( IsX360() )
+							{
+								engine->ServerCommand( "host_writeconfig\n" );
+							}
+						}
+
+						g_nCurrentChapterIndex = nNewChapter;
+						return;
+					}
+				}
+
+				break;
+			}
+		}
+	}
+
+	// Check the world entity for a chapter title.
+	if ( CWorld *pWorld = GetWorldEntity() )
+	{
+		const char *pWorldChapter = pWorld->GetChapterTitle();
+		if ( pWorldChapter && pWorldChapter[0] != '\0' )
+			Q_strncpy( chapterTitle, pWorldChapter, sizeof( chapterTitle ) );
+	}
+#endif
 
 	if ( !chapterTitle[0] )
 		return;
@@ -3043,7 +3196,11 @@ float CServerGameClients::ProcessUsercmds( edict_t *player, bf_read *buf, int nu
 	for ( i = totalcmds - 1; i >= 0; i-- )
 	{
 		to = &cmds[ i ];
+#if defined( MAPBASE_VSCRIPT )
+		ReadUsercmd( buf, to, from, pPlayer ); // Tell whose UserCmd it is
+#else
 		ReadUsercmd( buf, to, from );
+#endif
 		from = to;
 	}
 

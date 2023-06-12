@@ -71,15 +71,29 @@ public:
 		else
 			return m_flDrainRate; 
 	}
+#ifdef MAPBASE
+	void	SetDeviceDrainRate( float flDrainRate ) { m_flDrainRate = flDrainRate; }
+#endif
 };
 
 //=============================================================================
 // >> HL2_PLAYER
 //=============================================================================
+#if defined ( HL2MP )
+class CHL2_Player : public CBaseMultiplayerPlayer
+#else
 class CHL2_Player : public CBasePlayer
+#endif
 {
 public:
+#if defined ( HL2MP )
+	DECLARE_CLASS( CHL2_Player, CBaseMultiplayerPlayer );
+#else
 	DECLARE_CLASS( CHL2_Player, CBasePlayer );
+#endif
+#ifdef MAPBASE_VSCRIPT
+	DECLARE_ENT_SCRIPTDESC();
+#endif
 
 	CHL2_Player();
 	~CHL2_Player( void );
@@ -92,12 +106,6 @@ public:
 
 	DECLARE_SERVERCLASS();
 	DECLARE_DATADESC();
-
-	void				SetAnimation(PLAYER_ANIM playerAnim);
-	
-	bool				ValidatePlayerModel(const char *pModel);
-
-	void				SetPlayerModel(void);
 
 	virtual void		CreateCorpse( void ) { CopyToBodyQue( this ); };
 
@@ -113,6 +121,23 @@ public:
 	virtual void		StopLoopingSounds( void );
 	virtual void		Splash( void );
 	virtual void 		ModifyOrAppendPlayerCriteria( AI_CriteriaSet& set );
+
+#ifdef MAPBASE
+	// For the logic_playerproxy output
+	void				SpawnedAtPoint( CBaseEntity *pSpawnPoint );
+
+	Activity			Weapon_TranslateActivity( Activity baseAct, bool *pRequired = NULL );
+
+#ifdef SP_ANIM_STATE
+	void				SetAnimation( PLAYER_ANIM playerAnim );
+
+	void				AddAnimStateLayer( int iSequence, float flBlendIn = 0.0f, float flBlendOut = 0.0f, float flPlaybackRate = 1.0f, bool bHoldAtEnd = false, bool bOnlyWhenStill = false );
+#endif
+
+	virtual CStudioHdr*	OnNewModel();
+
+	virtual const char *GetOverrideStepSound( const char *pszBaseStepSoundName );
+#endif
 
 	void				DrawDebugGeometryOverlays(void);
 
@@ -146,6 +171,11 @@ public:
 	
 	void SetFlashlightEnabled( bool bState );
 
+#ifdef MAPBASE
+	// Needed for logic_playerproxy
+	float GetFlashlightBattery();
+#endif
+
 	// Apply a battery
 	bool ApplyBattery( float powerMultiplier = 1.0 );
 
@@ -165,6 +195,17 @@ public:
 	CAI_BaseNPC *GetSquadCommandRepresentative();
 	int GetNumSquadCommandables();
 	int GetNumSquadCommandableMedics();
+
+#ifdef MAPBASE
+	void InputSquadForceSummon( inputdata_t &inputdata );
+	void InputSquadForceGoTo( inputdata_t &inputdata );
+
+	void InputEnableGeigerCounter( inputdata_t &inputdata );
+	void InputDisableGeigerCounter( inputdata_t &inputdata );
+
+	void InputShowSquadHUD( inputdata_t &inputdata );
+	void InputHideSquadHUD( inputdata_t &inputdata );
+#endif
 
 	// Locator
 	void UpdateLocatorPosition( const Vector &vecPosition );
@@ -202,6 +243,19 @@ public:
 	void				InputEnableFlashlight( inputdata_t &inputdata );
 	void				InputDisableFlashlight( inputdata_t &inputdata );
 
+#ifdef MAPBASE
+	void				InputAddArmor( inputdata_t &inputdata );
+	void				InputRemoveArmor( inputdata_t &inputdata );
+	void				InputSetArmor( inputdata_t &inputdata );
+
+	void				InputAddAuxPower( inputdata_t &inputdata );
+	void				InputRemoveAuxPower( inputdata_t &inputdata );
+	void				InputSetAuxPower( inputdata_t &inputdata );
+
+	void				InputTurnFlashlightOn( inputdata_t &inputdata );
+	void				InputTurnFlashlightOff( inputdata_t &inputdata );
+#endif
+
 	const impactdamagetable_t &GetPhysicsImpactDamageTable();
 	virtual int			OnTakeDamage( const CTakeDamageInfo &info );
 	virtual int			OnTakeDamage_Alive( const CTakeDamageInfo &info );
@@ -216,6 +270,10 @@ public:
 	bool				ShouldKeepLockedAutoaimTarget( EHANDLE hLockedTarget );
 
 	void				SetLocatorTargetEntity( CBaseEntity *pEntity ) { m_hLocatorTargetEntity.Set( pEntity ); }
+
+#ifdef MAPBASE
+	virtual bool		CanAutoSwitchToNextBestWeapon( CBaseCombatWeapon *pWeapon );
+#endif
 
 	virtual int			GiveAmmo( int nCount, int nAmmoIndex, bool bSuppressSound);
 	virtual bool		BumpWeapon( CBaseCombatWeapon *pWeapon );
@@ -248,6 +306,7 @@ public:
 	virtual	bool		IsHoldingEntity( CBaseEntity *pEnt );
 	virtual void		ForceDropOfCarriedPhysObjects( CBaseEntity *pOnlyIfHoldindThis );
 	virtual float		GetHeldObjectMass( IPhysicsObject *pHeldObject );
+	virtual CBaseEntity	*GetHeldObject( void );
 
 	virtual bool		IsFollowingPhysics( void ) { return (m_afPhysicsFlags & PFLAG_ONBARNACLE) > 0; }
 	void				InputForceDropPhysObjects( inputdata_t &data );
@@ -287,6 +346,13 @@ public:
 
 	// HUD HINTS
 	void DisplayLadderHudHint();
+
+#ifdef MAPBASE
+	void InitCustomSuitDevice( int iDeviceID, float flDrainRate );
+	void AddCustomSuitDevice( int iDeviceID );
+	void RemoveCustomSuitDevice( int iDeviceID );
+	bool IsCustomSuitDeviceActive( int iDeviceID );
+#endif
 
 	CSoundPatch *m_sndLeeches;
 	CSoundPatch *m_sndWaterSplashes;
@@ -359,6 +425,8 @@ private:
 	
 	float				m_flArmorReductionTime;
 	int					m_iArmorReductionFrom;
+
+	float				m_flTimeUseSuspended;
 
 	CSimpleSimTimer		m_LowerWeaponTimer;
 	CSimpleSimTimer		m_AutoaimTimer;
