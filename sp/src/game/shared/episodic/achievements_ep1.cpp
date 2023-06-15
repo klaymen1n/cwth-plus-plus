@@ -9,7 +9,7 @@
 #include "achievementmgr.h"
 #include "baseachievement.h"
 
-#ifdef GAME_DLL
+#if 0
 
 
 class CAchievementEp1KillAntlionsWithCar : public CBaseAchievement
@@ -130,4 +130,4 @@ DECLARE_EP1_MAP_EVENT_ACHIEVEMENT( ACHIEVEMENT_EP1_BEAT_GARAGEELEVATORSTANDOFF, 
 DECLARE_EP1_MAP_EVENT_ACHIEVEMENT( ACHIEVEMENT_EP1_BEAT_HOSPITALATTICGUNSHIP, "EP1_BEAT_HOSPITALATTICGUNSHIP", 5 );
 DECLARE_EP1_MAP_EVENT_ACHIEVEMENT( ACHIEVEMENT_EP1_BEAT_GAME, "EP1_BEAT_GAME", 20 );
 
-#endif // GAME_DLL
+#endif // It's usefull for portal...

@@ -1171,6 +1171,7 @@ public:
 	int						m_nNumCrateHudHints;
 
 #ifdef MAPBASE
+	CNetworkVar(bool, m_bDrawPlayerModelExternally);
 	bool					GetDrawPlayerModelExternally( void ) { return m_bDrawPlayerModelExternally; }
 	void					SetDrawPlayerModelExternally( bool bToggle ) { m_bDrawPlayerModelExternally.Set( bToggle ); }
 #endif
@@ -1212,10 +1213,6 @@ private:
 
 	// Player name
 	char					m_szNetname[MAX_PLAYER_NAME_LENGTH];
-
-#ifdef MAPBASE
-	CNetworkVar( bool, m_bDrawPlayerModelExternally );
-#endif
 
 protected:
 	// HACK FOR TF2 Prediction

@@ -70,6 +70,10 @@ const char *g_pszPlayerModel = "models/player.mdl";
 extern ConVar weapon_showproficiency;
 extern ConVar autoaim_max_dist;
 
+#ifdef MAPBASE
+extern ConVar player_squad_autosummon_enabled;
+#endif
+
 // Max mass the player can lift with +use when holding portal gun
 ConVar max_lift_mass_portalgun("max_lift_mass_portalgun", "85", FCVAR_GAMEDLL | FCVAR_ARCHIVE | FCVAR_REPLICATED | FCVAR_NOT_CONNECTED, "Max mass the player can lift with +use when holding portal gun");
 ConVar max_lift_size_portalgun("max_lift_size_portalgun", "128", FCVAR_GAMEDLL | FCVAR_ARCHIVE | FCVAR_REPLICATED | FCVAR_NOT_CONNECTED, "Max size the player can lift with +use when holding portal gun");
@@ -269,7 +273,6 @@ public:
 
 	void InputSetHandModel( inputdata_t &inputdata );
 	void InputSetHandModelSkin( inputdata_t &inputdata );
-	void InputSetHandModelBodyGroup( inputdata_t &inputdata );
 
 	void InputSetPlayerModel( inputdata_t &inputdata );
 	void InputSetPlayerDrawExternally( inputdata_t &inputdata );
@@ -4614,7 +4617,6 @@ BEGIN_DATADESC( CLogicPlayerProxy )
 	DEFINE_INPUTFUNC( FIELD_STRING,	"GetAmmoOnWeapon", InputGetAmmoOnWeapon ),
 	DEFINE_INPUTFUNC( FIELD_STRING,	"SetHandModel", InputSetHandModel ),
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "SetHandModelSkin", InputSetHandModelSkin ),
-	DEFINE_INPUTFUNC( FIELD_INTEGER, "SetHandModelBodyGroup", InputSetHandModelBodyGroup ),
 	DEFINE_INPUTFUNC( FIELD_STRING,	"SetPlayerModel", InputSetPlayerModel ),
 	DEFINE_INPUTFUNC( FIELD_BOOLEAN, "SetPlayerDrawExternally", InputSetPlayerDrawExternally ),
 	DEFINE_INPUT( m_MaxArmor, FIELD_INTEGER, "SetMaxInputArmor" ),
@@ -5281,4 +5283,62 @@ void CHL2_Player::SetPlayerModel(void)
 	}
 	//m_iPlayerSoundType = (int)PLAYER_SOUNDS_CITIZEN;
 }
+#ifdef MAPBASE
+void CLogicPlayerProxy::InputSetHandModel(inputdata_t& inputdata)
+{
+	if (!m_hPlayer)
+		return;
+
+	string_t iszModel = inputdata.value.StringID();
+
+	if (iszModel != NULL_STRING)
+		PrecacheModel(STRING(iszModel));
+
+	CBasePlayer* pPlayer = static_cast<CBasePlayer*>(m_hPlayer.Get());
+	CBaseViewModel* vm = pPlayer->GetViewModel(1);
+	if (vm)
+		vm->SetModel(STRING(iszModel));
+}
+
+void CLogicPlayerProxy::InputSetHandModelSkin(inputdata_t& inputdata)
+{
+	if (!m_hPlayer)
+		return;
+
+	CBasePlayer* pPlayer = static_cast<CBasePlayer*>(m_hPlayer.Get());
+	CBaseViewModel* vm = pPlayer->GetViewModel(1);
+	if (vm)
+		vm->m_nSkin = inputdata.value.Int();
+}
+
+void CLogicPlayerProxy::InputSetPlayerModel(inputdata_t& inputdata)
+{
+	if (!m_hPlayer)
+		return;
+
+	string_t iszModel = inputdata.value.StringID();
+
+	if (iszModel != NULL_STRING)
+		PrecacheModel(STRING(iszModel));
+	else
+	{
+		// We're resetting the model. The original model should've been cached to our own model name.
+		iszModel = GetModelName();
+	}
+
+	// Cache the original model as our own model name.
+	SetModelName(m_hPlayer->GetModelName());
+
+	m_hPlayer->SetModel(STRING(iszModel));
+}
+
+void CLogicPlayerProxy::InputSetPlayerDrawExternally(inputdata_t& inputdata)
+{
+	if (!m_hPlayer)
+		return;
+
+	CBasePlayer* pPlayer = static_cast<CBasePlayer*>(m_hPlayer.Get());
+	pPlayer->m_bDrawPlayerModelExternally = inputdata.value.Bool();
+}
+#endif
 

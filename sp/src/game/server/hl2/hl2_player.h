@@ -109,6 +109,10 @@ public:
 
 	virtual void		CreateCorpse( void ) { CopyToBodyQue( this ); };
 
+	void				SetAnimation(PLAYER_ANIM playerAnim);
+	bool				ValidatePlayerModel(const char* pModel);
+	void				SetPlayerModel(void);
+
 	virtual void		Precache( void );
 	virtual void		Spawn(void);
 	virtual void		Activate( void );
@@ -425,8 +429,6 @@ private:
 	
 	float				m_flArmorReductionTime;
 	int					m_iArmorReductionFrom;
-
-	float				m_flTimeUseSuspended;
 
 	CSimpleSimTimer		m_LowerWeaponTimer;
 	CSimpleSimTimer		m_AutoaimTimer;
